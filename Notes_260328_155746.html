@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Magnetic Field Viewer</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #050816;
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    .card {
+      background: #111827;
+      border-radius: 16px;
+      padding: 24px 28px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      max-width: 360px;
+      width: 100%;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.4rem;
+      color: #f9fafb;
+    }
+    p {
+      margin: 4px 0;
+      font-size: 0.9rem;
+      color: #9ca3af;
+    }
+    .value {
+      font-size: 2.4rem;
+      font-weight: 600;
+      margin: 12px 0 4px;
+      color: #a5b4fc;
+    }
+    .axis {
+      font-size: 0.85rem;
+      margin-top: 8px;
+    }
+    .status {
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: #f97373;
+    }
+    button {
+      margin-top: 16px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: none;
+      background: #4f46e5;
+      color: #f9fafb;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #374151;
+      cursor: default;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Magnetic Field (approx)</h1>
+    <p>Bring a magnet near your phone and watch the values change.</p>
+
+    <div class="value" id="total">-- µT</div>
+    <div class="axis" id="axes">X: -- µT · Y: -- µT · Z: -- µT</div>
+    <div class="status" id="status">Waiting for sensor...</div>
+
+    <button id="startBtn">Start sensor</button>
+  </div>
+
+  <script>
+    const totalEl = document.getElementById('total');
+    const axesEl = document.getElementById('axes');
+    const statusEl = document.getElementById('status');
+    const startBtn = document.getElementById('startBtn');
+
+    let sensor = null;
+
+    function format(n) {
+      return Number.isFinite(n) ? n.toFixed(1) : '--';
+    }
+
+    async function startMagnetometer() {
+      if (!('Magnetometer' in window)) {
+        statusEl.textContent = 'Magnetometer API not supported on this browser/device.';
+        startBtn.disabled = true;
+        return;
+      }
+
+      try {
+        // On some browsers (esp. mobile), you need permission first
+        if (navigator.permissions && navigator.permissions.query) {
+          try {
+            const perm = await navigator.permissions.query({ name: 'magnetometer' });
+            if (perm.state === 'denied') {
+              statusEl.textContent = 'Permission denied for magnetometer.';
+              startBtn.disabled = true;
+              return;
+            }
+          } catch (e) {
+            // Some browsers throw here; we just continue and let the sensor fail if needed
+          }
+        }
+
+        sensor = new Magnetometer({ frequency: 20 });
+
+        sensor.addEventListener('reading', () => {
+          const x = sensor.x;
+          const y = sensor.y;
+          const z = sensor.z;
+
+          // Magnitude of the magnetic field vector
+          const magnitude = Math.sqrt(x * x + y * y + z * z);
+
+          totalEl.textContent = `${format(magnitude)} µT`;
+          axesEl.textContent = `X: ${format(x)} µT · Y: ${format(y)} µT · Z: ${format(z)} µT`;
+          statusEl.textContent = 'Sensor active.';
+        });
+
+        sensor.addEventListener('error', event => {
+          statusEl.textContent = `Sensor error: ${event.error?.name || event.error || 'unknown'}`;
+        });
+
+        sensor.start();
+        startBtn.disabled = true;
+      } catch (err) {
+        statusEl.textContent = `Could not start magnetometer: ${err.message}`;
+        startBtn.disabled = true;
+      }
+    }
+
+    startBtn.addEventListener('click', startMagnetometer);
+  </script>
+</body>
+</html>
